@@ -6,8 +6,8 @@ Test cross-validating the splines with an example.
 import numpy
 import scipy.stats
 
-import test_common
 import prob_spline
+import test_common
 
 
 npoints = 11

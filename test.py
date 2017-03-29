@@ -8,8 +8,8 @@ import numpy
 import scipy.stats
 import seaborn
 
-import test_common
 import prob_spline
+import test_common
 
 
 npoints = 21
