@@ -2,9 +2,6 @@ import numpy
 import scipy.stats
 
 
-numpy.random.seed(2)
-
-
 def mu(x):
     '''
     An example parameter function to test the splines.

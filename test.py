@@ -14,6 +14,7 @@ import test_common
 
 npoints = 21
 
+numpy.random.seed(2)
 
 # Plot mu
 x = numpy.linspace(test_common.x_min, test_common.x_max, 1001)

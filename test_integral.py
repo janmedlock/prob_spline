@@ -13,6 +13,7 @@ import test_common
 
 npoints = 21
 
+numpy.random.seed(2)
 
 # Get Poisson samples around mu(x).
 X = numpy.linspace(test_common.x_min, test_common.x_max, npoints)
