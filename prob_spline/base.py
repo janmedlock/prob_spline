@@ -183,7 +183,6 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                            args = (continuity_matrix, ),
                            type = 'eq')
         options = dict(maxiter = 1000)
-        # Optimize
         result = scipy.optimize.minimize(self._objective,
                                          coef_initial_guess,
                                          constraints = constraints,
