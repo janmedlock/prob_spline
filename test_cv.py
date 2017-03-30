@@ -3,8 +3,10 @@
 Test cross-validating the splines with an example.
 '''
 
+from matplotlib import pyplot
 import numpy
 import scipy.stats
+import seaborn
 import sklearn.model_selection
 
 import prob_spline
