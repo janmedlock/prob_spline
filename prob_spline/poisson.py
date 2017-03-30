@@ -1,3 +1,5 @@
+import warnings
+
 import numpy
 import scipy.stats
 
@@ -12,7 +14,17 @@ class PoissonSpline(base.ProbSpline):
 
     @staticmethod
     def _loglikelihood(Y, mu):
-        return scipy.stats.poisson.logpmf(Y, mu)
+        if numpy.isscalar(mu):
+            mu = numpy.array([mu])
+        # Handle mu = +inf gracefully.
+        isposinf = numpy.isposinf(mu)
+        # Silence warnings.
+        mu[isposinf] = 0
+        V = scipy.stats.poisson.logpmf(Y, mu)
+        V[isposinf] = -numpy.inf
+        if numpy.isscalar(Y):
+            V = numpy.asscalar(V)
+        return V
 
     @classmethod
     def _transform(cls, Y):
@@ -20,4 +32,9 @@ class PoissonSpline(base.ProbSpline):
 
     @classmethod
     def _transform_inverse(cls, Z):
-        return numpy.exp(Z) - cls._alpha
+        # Silence warnings.
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore',
+                                    category = RuntimeWarning,
+                                    message = 'overflow encountered in exp')
+            return numpy.exp(Z) - cls._alpha
