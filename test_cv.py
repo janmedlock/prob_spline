@@ -33,10 +33,11 @@ handles.append(s)
 spline = prob_spline.PoissonSpline()
 # Find the best sigma value by K-fold cross-validation.
 kfold = sklearn.model_selection.KFold(n_splits = 5, shuffle = True)
-param_grid = dict(sigma = numpy.logspace(-5, 5, 21))
+param_grid = dict(sigma = numpy.logspace(-6, 6, 25))
 gridsearch = sklearn.model_selection.GridSearchCV(spline,
                                                   param_grid,
-                                                  cv = kfold)
+                                                  cv = kfold,
+                                                  error_score = 0)
 gridsearch.fit(X, Y)
 spline = gridsearch.best_estimator_
 l = pyplot.plot(x, spline(x),
