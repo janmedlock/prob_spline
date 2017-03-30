@@ -71,6 +71,13 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
 
     __call__ = predict
 
+    def score(self, X, Y):
+        '''
+        The likelihood.
+        '''
+        mu = self.predict(X)
+        return numpy.exp(numpy.sum(self._loglikelihood(Y, mu)))
+
     def _fit_interpolating_spline(self, X, Y, continuity_matrix = None):
         if continuity_matrix is None:
             continuity_matrix = self._get_continuity_matrix(X, Y)
