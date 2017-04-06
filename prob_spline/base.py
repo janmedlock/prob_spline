@@ -58,15 +58,17 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         if numpy.isscalar(ix):
             ix = [ix]
         # Get the coefficients in those intervals.
-        coef = numpy.column_stack(
+        coef = numpy.stack(
             [self.coef_[(self.degree + 1) * i : (self.degree + 1) * (i + 1)]
-             for i in ix])
+             for i in ix], axis = -1)
         # Evaluate the polynomials in those intervals at the X values.
         z = numpy.polyval(coef, X - self.knots_[ix])
         mu = self._transform_inverse(z).clip(self._parameter_min,
                                              self._parameter_max)
         if numpy.isscalar(X):
-            mu = numpy.asscalar(mu)
+            mu = numpy.squeeze(mu, axis = 0)
+            if numpy.ndim(mu) == 0:
+                mu = numpy.asscalar(mu)
         return mu
 
     __call__ = predict

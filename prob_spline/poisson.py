@@ -23,7 +23,9 @@ class PoissonSpline(base.ProbSpline):
         V = scipy.stats.poisson.logpmf(Y, mu)
         V[isposinf] = -numpy.inf
         if numpy.isscalar(Y):
-            V = numpy.asscalar(V)
+            V = numpy.squeeze(V, axis = 0)
+            if numpy.ndim(V) == 0:
+                V = numpy.asscalar(V)
         return V
 
     @classmethod
