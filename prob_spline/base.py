@@ -103,20 +103,34 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         return numpy.exp(numpy.sum(self._loglikelihood(Y, mu)))
 
     def _fit_interpolating_spline(self, X, Y,
-                                  continuity_matrix = None):
+                                  continuity_matrix_vector = None):
         '''
         Fit an interpolating spline to (X, Y).
         '''
-        if continuity_matrix is None:
-            continuity_matrix = self._get_continuity_matrix(X, Y)
         knots = X[0 : -1]
         # The continuity conditions.
-        # A_C.dot(coef) = 0.
-        A_C = continuity_matrix
-        m_C, n_C = A_C.shape
-        b_C = numpy.zeros(m_C)
+        # A_C.dot(coef) = b_C.
+        if continuity_matrix_vector is not None:
+            A_C, b_C = continuity_matrix_vector
+        else:
+            A_C, b_C = self._get_continuity_matrix_vector(X, Y)
         # The interpolating conditions.
-        # A_I.dot(coef) = Y.
+        # A_I.dot(coef) = b_I.
+        A_I, b_I = self._get_interpolating_matrix_vector(X, Y)
+        # Solve these two sets of conditions together.
+        A = scipy.sparse.vstack((A_C, A_I))
+        b = numpy.hstack((b_C, b_I))
+        coef = scipy.sparse.linalg.spsolve(A.tocsr(), b)
+        return (knots, coef)
+
+    def _get_interpolating_matrix_vector(self, X, Y):
+        '''
+        Build the matrix A_I and vector b_I
+        for the interpolating conditions at the knots.
+        A_I * coef = b_I
+        when the conditions are all satisfied.
+        '''
+        knots = X[0 : -1]
         m_I = len(knots) + 1
         n_I = (self.degree + 1) * len(knots)
         A_I = scipy.sparse.lil_matrix((m_I, n_I))
@@ -136,23 +150,19 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         dX = X[-1] - X[-2]
         A_I[-1, - (self.degree + 1) : ] = dX ** exponents
         b_I = self._transform(Y)
-        # Solve these two sets of conditions together.
-        A = scipy.sparse.vstack((A_C, A_I))
-        b = numpy.hstack((b_C, b_I))
-        coef = scipy.sparse.linalg.spsolve(A.tocsr(), b)
-        return (knots, coef)
+        return (A_I, b_I)
 
-    def _get_continuity_matrix(self, X, Y):
+    def _get_continuity_matrix_vector(self, X, Y):
         '''
-        Build the matrix for the continuity conditions
-        at the internal knots.
-        The product of the resulting matrix and the vector of coeffecients
-        is 0 when the conditions are all satisfied.
+        Build the matrix A_C and vector b_C
+        for the continuity conditions at the internal knots.
+        A_C * coef = b_C
+        when the conditions are all satisfied.
         '''
         knots = X[0 : -1]
         m = self.degree * (len(knots) - 1) + 2
         n = (self.degree + 1) * len(knots)
-        continuity_matrix = scipy.sparse.lil_matrix((m, n))
+        A_C = scipy.sparse.lil_matrix((m, n))
         dX = numpy.diff(X)
         if self.degree > 0:
             # Natural boundary conditions.
@@ -161,10 +171,10 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                                       m = self.degree - 1)
             exponents = numpy.arange(1, -1, -1)
             # Left boundary.
-            continuity_matrix[0, 1] = constants[1]
+            A_C[0, 1] = constants[1]
             # Right boundary.
             cols = slice(- (self.degree + 1), - (self.degree - 1))
-            continuity_matrix[-1, cols] = constants * dX[-1] ** exponents
+            A_C[-1, cols] = constants * dX[-1] ** exponents
         # At each internal knot,
         # the jth derivatives are continuous
         # for j = 0, 1, ..., degree - 1.
@@ -178,12 +188,13 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                 # the jth derivative of the ith polynomial.
                 cols = slice((self.degree + 1) * i,
                              (self.degree + 1) * (i + 1) - j)
-                continuity_matrix[row, cols] = constants * dX[i] ** exponents
+                A_C[row, cols] = constants * dX[i] ** exponents
                 # The column of the constant term in
                 # the jth derivative of the (i + 1)st polynomial.
                 col = (self.degree + 1) * (i + 2) - 1 - j
-                continuity_matrix[row, col] = - constants[-1]
-        return continuity_matrix
+                A_C[row, col] = - constants[-1]
+        b_C = numpy.zeros(m)
+        return (A_C, b_C)
 
     def _fit_smoothing_spline(self, X, Y,
                               tol = 1e-3, maxiter = 1000, **options):
@@ -197,11 +208,11 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         # The continuity matrix is needed to get the initial
         # guess for the coefficients (_fit_interpolating_spline())
         # and by _continuity_constraints, so build it once now.
-        continuity_matrix = self._get_continuity_matrix(X, Y)
+        A_C, b_C = self._get_continuity_matrix_vector(X, Y)
         # Get the initial guess for the coefficients
         # from the interpolating spline.
         knots_interp, coef_interp = self._fit_interpolating_spline(
-            X, Y, continuity_matrix = continuity_matrix)
+            X, Y, continuity_matrix_vector = (A_C, b_C))
         # We could also optimize over the knots.
         initial_guess = coef_interp
         knots = knots_interp
@@ -218,7 +229,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         variation_args = (dX, deriv1, deriv2, adjustment_constant)
         objective_args = (knots, X, Y) + variation_args
         constraints = dict(fun = self._continuity_constraints,
-                           args = (continuity_matrix, ),
+                           args = (A_C, b_C),
                            type = 'eq')
         result = scipy.optimize.minimize(self._objective,
                                          initial_guess,
@@ -264,8 +275,8 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         variation = numpy.sum(numpy.abs(variations))
         return variation
 
-    def _continuity_constraints(self, coef, continuity_matrix):
+    def _continuity_constraints(self, coef, A_C, b_C):
         '''
         The continuity constraints function for optimizing the smoothing spline.
         '''
-        return continuity_matrix.dot(coef)
+        return A_C.dot(coef) - b_C
