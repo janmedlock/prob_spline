@@ -29,23 +29,16 @@ def get_variation_exact(spline, X):
     Compute the variation using the exact algorithm
     in prob_spline.ProbSpline._objective().
     '''
-    a = spline.coef_[0 : : spline.degree + 1]
-    b = spline.coef_[1 : : spline.degree + 1]
+    dX = numpy.diff(X)
     deriv1 = numpy.polyder(numpy.ones(spline.degree + 1),
                            m = spline.degree - 2)
     deriv2 = numpy.polyder(numpy.ones(spline.degree + 1),
                            m = spline.degree - 1)
-    # Check if 2nd derivative is 0 in the interval.
-    dX = numpy.diff(X)
-    condition1  = (a * b < 0)
-    condition2 = (numpy.abs(deriv2[1] * b) < numpy.abs(deriv2[0] * a * dX))
-    haszero = condition1 & condition2
-    variations = dX * (deriv1[0] * a * dX + deriv1[1] * b)
-    constant = (deriv2[1] / deriv2[0]
-                * (deriv1[1] - deriv1[0] * deriv2[1] / deriv2[0]))
-    adjustments = numpy.ma.divide(2 * constant * b ** 2, a)
-    variations[haszero] += adjustments[haszero]
-    variation = numpy.sum(numpy.abs(variations))
+    adjustment_constant = (deriv2[1] / deriv2[0]
+                           * (deriv1[1]
+                              - deriv1[0] * deriv2[1] / deriv2[0]))
+    variation = spline._variation(spline.knots_, spline.coef_,
+                                  dX, deriv1, deriv2, adjustment_constant)
     return variation
 
 

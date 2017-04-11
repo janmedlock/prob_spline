@@ -1,0 +1,338 @@
+\documentclass{article}
+
+\usepackage{geometry}
+
+\usepackage{amsmath}
+
+\usepackage{bm}
+
+\usepackage{hyperref}
+\hypersetup{breaklinks}
+\hypersetup{pdfborder=0 0 0}
+
+\usepackage[terseinits=true, firstinits=true]{biblatex}
+\DeclareNameAlias{default}{last-first}
+\renewcommand{\revsdnamepunct}{}
+\DeclareFieldFormat{title}{\textit{#1}}
+\AtEveryBibitem{\ifentrytype{book}{\clearfield{series}}{}}
+\addbibresource{notes.bib}
+
+\renewcommand{\vec}[1]{\bm{#1}}
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\md}{\mathrm{d}}
+\DeclareMathOperator{\diag}{diag}
+
+
+\title{Notes on B-splines}
+\author{Jan Medlock}
+
+
+\begin{document}
+
+\maketitle
+
+Following \textcite{Dierckx_1993}, a B-spline on $x \in [a, b]$ is
+\begin{equation}
+  s_{k, \vec{\lambda}}(x)
+  = \sum_{i=0}^{g+k} c_i N_{i, k, \vec{\lambda}}(x).
+\end{equation}
+
+\begin{description}
+\item [Degree] $k \geq 0$.
+
+\item [Knots]
+  $\vec{\lambda} = [\lambda_0, \ldots, \lambda_{g+k+1}]$,
+  with $\lambda_k = a$ and $\lambda_{g+k+1} = b$.
+
+  \begin{itemize}
+  \item There are $g + k + 2$ knots.
+
+  \item The knots are non-decreasing:
+    $\lambda_i \leq \lambda_{i+1}$.
+
+  \item There are $g$ internal knots:
+    $[\lambda_{k+1}, \ldots, \lambda_{g+k}]$.
+
+  \end{itemize}
+
+\item[Continuity] The first $k - 1$ derivatives of the spline
+  $s_{k, \vec{\lambda}}(x)$ are continuous on $[a, b]$, except at
+  repeated knots.  At a repeated knot
+  $\lambda_{i - 1}
+  < \lambda_i = \ldots = \lambda_{i + j}
+  < \lambda_{i + j + 1}$,
+  only the first $k - j - 1$ derivatives of
+  $s_{k, \vec{\lambda}}(x)$
+  are continuous, i.e.~derivatives
+  $k - j - 1, \ldots, k - 1$
+  are discontinuous.
+
+\item[Truncated power function]
+  \begin{equation}
+    (t - x)_+^k
+    =
+    \begin{cases}
+      (t - x)^k & \text{if $t \geq x$},
+      \\
+      0 & \text{if $t < x$}.
+    \end{cases}
+  \end{equation}
+
+  \begin{itemize}
+  \item For $k = 0$, define
+    \begin{equation}
+      (t - x)_+^0
+      =
+      \begin{cases}
+        1 & \text{if $t \geq x$},
+        \\
+        0 & \text{if $t < x$}.
+      \end{cases}
+    \end{equation}
+
+  \end{itemize}
+
+\item[Divided difference] The $k$th divided difference of the
+  function $f$ at the points $\tau_0, \ldots, \tau_k$
+  is the leading coefficient of the degree-$k$ polynomial $p_k$ that
+  interpolates $f$.  It is denoted
+  $\Delta_t^k (\tau_0, \ldots, \tau_k) f(t)$ and
+  $[\tau_0, \ldots, \tau_k] f$.
+
+  \begin{itemize}
+  \item $p_k(\tau_i) = f(\tau_i)$.
+
+  \item In addition, at points where
+    $\tau_i = \ldots = \tau_{i+j}$,
+    \begin{equation}
+      \frac{\md^{\ell} p_k}{\md x^{\ell}}(\tau_i)
+      = \frac{\md^{\ell} f}{\md x^{\ell}}(\tau_i)
+      \quad \text{for $\ell = 1, \ldots, j$}.
+    \end{equation}
+
+  \item Recursion:
+    \begin{equation}
+      \begin{split}
+        [\tau_i] f &= f(\tau_i),
+        \\
+        [\tau_i, \ldots, \tau_{i+j}] f
+        &=
+        \begin{cases}
+          \frac{[\tau_{i+1}, \ldots, \tau_{i+j}] f
+            - [\tau_i, \ldots, \tau_{i+j-1}] f}
+          {\tau_{i+j} - \tau_i}
+          & \text{if $\tau_i < \tau_{i + 1}$},
+          \\
+          \frac{1}{j!} \frac{\md^j f}{\md x^j}(\tau_i)
+          & \text{if $\tau_i = \ldots = \tau_{i+j}$}.
+        \end{cases}
+      \end{split}
+    \end{equation}
+
+  \item The polynomial interpolant is
+    \begin{equation}
+      p_k(x) = [\tau_0] f
+      + \sum_{j=1}^k (x - \tau_0) \cdots (x - \tau_{j-1})
+      [\tau_0, \ldots, \tau_j] f.
+    \end{equation}
+
+  \item The leading coefficient is
+    \begin{equation}
+      [\tau_0, \ldots, \tau_k] f
+      = \frac{1}{k!} \frac{\md^k p_k}{\md x^k}.
+    \end{equation}
+
+  \end{itemize}
+
+\item[B-spline basis functions]
+  \begin{equation}
+    N_{i, k, \vec{\lambda}}(x) = (\lambda_{i+k+1} - \lambda_i)
+    \Delta_t^{k+1}(\lambda_i, \ldots, \lambda_{i+k+1}) (t - x)_{+}^k.
+  \end{equation}
+
+  \begin{itemize}
+
+  \item Recursion:
+    \begin{equation}
+      \begin{split}
+        N_{i, 0, \vec{\lambda}}(x)
+        &=
+        \begin{cases}
+          \chi_{[\lambda_i, \lambda_{i+1})}(x)
+          & \text{if $i < g + k$},
+          \\
+          \chi_{[\lambda_i, \lambda_{i+1}]}(x)
+          & \text{if $i = g + k$},
+        \end{cases}
+        \\
+        N_{i, k, \vec{\lambda}}(x)
+        &=
+        \frac{x - \lambda_i}{\lambda_{i+k} - \lambda_i}
+        N_{i, k-1, \vec{\lambda}}(x)
+        + \frac{\lambda_{i+k+1} - x}{\lambda_{i+k+1} - \lambda_{i+1}}
+        N_{i+1, k-1, \vec{\lambda}}(x),
+      \end{split}
+    \end{equation}
+    for $i = 0, \ldots, g+k$, where
+    \begin{equation}
+      \label{eq:3}
+      \chi_{\mathcal{S}}(x)
+      =
+      \begin{cases}
+        1 & \text{if $x \in \mathcal{S}$},
+        \\
+        0 & \text{if $x \notin \mathcal{S}$},
+      \end{cases}
+    \end{equation}
+    is the characteristic function.
+    Note that without the modified definition for
+    $N_{g + k, 0, \vec{\lambda}}(x)$,
+    at the right endpoint,
+    $N_{i, k, \vec{\lambda}}(b) = 0$ for all $i$ and $k$.
+
+  \item Derivative:
+    \begin{equation}
+      \frac{\md N_{i, k, \vec{\lambda}}}{\md x}(x)
+      =
+      k \left[
+        \frac{N_{i, k-1, \vec{\lambda}}(x)}
+        {\lambda_{i+k} - \lambda_i}
+        - \frac{N_{i+1, k-1, \vec{\lambda}}(x)}
+        {\lambda_{i+k+1} - \lambda_{i+1}}
+      \right].
+    \end{equation}
+
+  \item $N_{i, k, \vec{\lambda}}(x) \geq 0$
+    for all $x$.
+
+  \end{itemize}
+
+\end{description}
+
+\section{scipy.interpolate and FITPACK}
+
+The $n \geq k + 1$ data points to fit are $(x_j, y_j)$
+for $j = 0, \ldots, n - 1$.
+
+The $n + k + 1$ knots are
+\begin{equation}
+  \begin{split}
+    \lambda_0 &= \cdots = \lambda_k
+    = x_0,
+    \\
+    \lambda_j
+    &=
+    \left\{
+      \begin{array}{ll}
+        x_{j - \frac{k+1}{2}}
+        & \text{if $k$ is odd}
+        \\
+        \frac{1}{2}
+        \left(
+          x_{j - \frac{k}{2} - 1} + x_{j - \frac{k}{2}}
+        \right)
+        & \text{if $k$ is even}
+      \end{array}
+    \right\}
+    \;
+    \text{for $j = k+1, \ldots, n-1$},
+    \\
+    \lambda_n &= \cdots = \lambda_{n + k} = x_{n-1}.
+  \end{split}
+\end{equation}
+(The middle terms are omitted if $n = k + 1$.)
+
+\emph{What do the locations of the boundary knots imply?}
+
+The coefficients are $\vec{c} = [c_0, \ldots, c_{n-1}]$.  These
+are padded to length $n + k + 1$ by appending $k + 1$ zeros.
+
+
+\subsection{Interpolation}
+
+For interpolating splines,
+\begin{equation}
+  \begin{split}
+    \vec{y}
+    &= s_{k, \vec{\lambda}}(\vec{x})
+    \\
+    &= \sum_{i=0}^{n-1} c_i
+    N_{i, k, \vec{\lambda}}(\vec{x}).
+    \\
+    &= \mat{A} \vec{c},
+  \end{split}
+\end{equation}
+with $\mat{A}$ the matrix with columns
+\begin{equation}
+  \vec{a}_i
+  =
+  N_{i, k, \vec{\lambda}}(\vec{x}).
+\end{equation}
+Only the middle $2 k - 1$ diagonals of $\mat{A}$ are nonzero, so
+\begin{equation}
+  \mat{A}
+  =
+  \sum_{i = -(k-1)}^{k-1}
+  \diag(\vec{d}_i, i),
+\end{equation}
+with
+\begin{equation}
+  \begin{split}
+    d_{i, j}
+    &=
+    N_{i + j, k, \vec{\lambda}}(x_j)
+    \quad
+    \text{for $j = - \min\{i, 0\}, \ldots, n - \max\{i, 0\} - 1$},
+    \\
+    &=
+    N_{j, k, \vec{\lambda}}(x_{j - i})
+    \quad
+    \text{for $j = \max\{i, 0\}, \ldots, n + \min\{i, 0\} - 1$}.
+  \end{split}
+\end{equation}
+
+\section{Variation}
+
+We require
+\begin{equation}
+  V
+  = \int_a^b \left|\frac{\md^2 s_{k, \vec{\lambda}}}{\md x^2}\right|
+  \md x.
+\end{equation}
+
+The first derivative is
+\begin{equation}
+  \begin{split}
+    \frac{\md s_{k, \vec{\lambda}}}{\md x}
+    &= \frac{\md}{\md x} \sum_{i=0}^{n-1} c_i
+    N_{i, k, \vec{\lambda}}(x)
+    \\
+    &= k \sum_{i=1}^{n-1} c_i^{(1)} N_{i, k-1, \vec{\lambda}}(x),
+  \end{split}
+\end{equation}
+with
+\begin{equation}
+  c_i^{(1)} = \frac{c_i - c_{i-1}}{\lambda_{i+k} - \lambda_i}.
+\end{equation}
+Then the second derivative is
+\begin{equation}
+  \begin{split}
+    \frac{\md^2 s_{k, \vec{\lambda}}}{\md x^2}
+    &= \frac{\md}{\md x} \sum_{i=1}^{n-1} c_i^{(1)}
+    N_{i, k-1, \vec{\lambda}}(x)
+    \\
+    &= k (k - 1) \sum_{i=2}^{n-1} c_i^{(2)}
+    N_{i, k-2, \vec{\lambda}}(x),
+  \end{split}
+\end{equation}
+with
+\begin{equation}
+  c_i^{(2)} =
+  \frac{c_i^{(1)} - c_{i-1}^{(1)}}
+  {\lambda_{i+k-1} - \lambda_i}.
+\end{equation}
+
+
+\printbibliography
+
+\end{document}
