@@ -14,11 +14,10 @@ class PoissonSpline(base.ProbSpline):
     def _loglikelihood(Y, mu):
         if numpy.isscalar(mu):
             mu = numpy.array([mu])
-        # Handle mu = +inf gracefully.
         with numpy.errstate(invalid = 'ignore'):
-            V = numpy.where(numpy.isposinf(mu),
-                            - numpy.inf,
-                            scipy.stats.poisson.logpmf(Y, mu))
+            V = scipy.stats.poisson.logpmf(Y, mu)
+        # Fix mu = +inf.
+        V[numpy.isposinf(mu)] = - numpy.inf
         if numpy.isscalar(Y):
             V = numpy.squeeze(V, axis = 0)
             if numpy.ndim(V) == 0:
@@ -27,7 +26,8 @@ class PoissonSpline(base.ProbSpline):
 
     @classmethod
     def _transform(cls, Y):
-        return numpy.log(Y + cls._alpha)
+        with numpy.errstate(divide = 'ignore'):
+            return numpy.log(Y + cls._alpha)
 
     @classmethod
     def _transform_inverse(cls, Z):
