@@ -11,13 +11,15 @@ import prob_spline
 import test_common
 
 
-npoints = 21
+npoints = 20
 
 numpy.random.seed(2)
 
 # Get Poisson samples around mu(x).
-X = numpy.linspace(test_common.x_min, test_common.x_max, npoints)
-Y = scipy.stats.poisson.rvs(test_common.mu(X))
+# Make mu(x) periodic.
+X = numpy.linspace(test_common.x_min, test_common.x_max, npoints + 1)
+Y = scipy.stats.poisson.rvs(test_common.mu(X[ : -1]))
+Y = numpy.hstack((Y, Y[0]))
 
 # Fit an interpolating spline.
 spline = prob_spline.NormalSpline()
