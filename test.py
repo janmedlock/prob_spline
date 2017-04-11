@@ -19,14 +19,16 @@ numpy.random.seed(2)
 # Plot mu
 x = numpy.linspace(test_common.x_min, test_common.x_max, 1001)
 handles = []  # To control the order in the legend.
-l = pyplot.plot(x, test_common.mu(x), color = 'black', linestyle = 'dotted',
+l = pyplot.plot(x, test_common.mu(x),
+                color = 'black', linestyle = 'dotted',
                 label = '$\mu(x)$')
 handles.append(l[0])
 
 # Get Poisson samples around mu(x) and plot.
 X = numpy.linspace(test_common.x_min, test_common.x_max, npoints)
 Y = scipy.stats.poisson.rvs(test_common.mu(X))
-s = pyplot.scatter(X, Y, color = 'black',
+s = pyplot.scatter(X, Y,
+                   s = 30, color = 'black', zorder = 3,
                    label = 'Poisson($\mu(x)$) samples')
 handles.append(s)
 

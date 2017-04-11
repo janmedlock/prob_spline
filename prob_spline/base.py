@@ -1,5 +1,6 @@
 import abc
 import numbers
+import warnings
 
 import numpy
 import scipy.optimize
@@ -39,7 +40,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         This must be defined by subclasses.
         '''
 
-    def fit(self, X, Y, _force_smoothing = False, **kwargs):
+    def fit(self, X, Y, _force_smoothing = False, **options):
         '''
         Fit the spline to (X, Y).
 
@@ -51,7 +52,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
             self.knots_, self.coef_ = self._fit_interpolating_spline(X, Y)
         else:
             self.knots_, self.coef_ = self._fit_smoothing_spline(X, Y,
-                                                                 **kwargs)
+                                                                 **options)
         return self
 
     def _check_is_fitted(self):
@@ -184,14 +185,15 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                 continuity_matrix[row, col] = - constants[-1]
         return continuity_matrix
 
-    def _fit_smoothing_spline(self, X, Y, maxiter = 1000, **kwargs):
+    def _fit_smoothing_spline(self, X, Y,
+                              tol = 1e-3, maxiter = 1000, **options):
         '''
         Fit a smoothing spline to (X, Y)
         by minimizing
         - loglikelihood + sigma * \int |f''(x)| dx.
         '''
         # Build the options for scipy.optimize.minimize()
-        kwargs.update(maxiter = maxiter)
+        options.update(maxiter = maxiter)
         # The continuity matrix is needed to get the initial
         # guess for the coefficients (_fit_interpolating_spline())
         # and by _continuity_constraints, so build it once now.
@@ -222,10 +224,10 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                                          initial_guess,
                                          constraints = constraints,
                                          args = objective_args,
-                                         options = kwargs)
+                                         tol = tol,
+                                         options = options)
         if not result.success:
-            raise RuntimeError('Optimization failed: {}'.format(
-                result.message))
+            warnings.warn(result.message, scipy.optimize.OptimizeWarning)
         coef = result.x
         return (knots, coef)
 
@@ -242,7 +244,8 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
             variation = self._variation(knots, coef, *variation_args)
             return - loglikelihood + self.sigma * variation
 
-    def _variation(self, knots, coef, dX, deriv1, deriv2, adjustment_constant):
+    def _variation(self, knots, coef,
+                   dX, deriv1, deriv2, adjustment_constant):
         '''
         \int |f^{(k - 1)}(x)| dx
         '''

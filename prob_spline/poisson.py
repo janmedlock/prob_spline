@@ -1,5 +1,3 @@
-import warnings
-
 import numpy
 import scipy.stats
 
@@ -17,11 +15,10 @@ class PoissonSpline(base.ProbSpline):
         if numpy.isscalar(mu):
             mu = numpy.array([mu])
         # Handle mu = +inf gracefully.
-        isposinf = numpy.isposinf(mu)
-        # Silence warnings.
-        mu[isposinf] = 0
-        V = scipy.stats.poisson.logpmf(Y, mu)
-        V[isposinf] = -numpy.inf
+        with numpy.errstate(invalid = 'ignore'):
+            V = numpy.where(numpy.isposinf(mu),
+                            - numpy.inf,
+                            scipy.stats.poisson.logpmf(Y, mu))
         if numpy.isscalar(Y):
             V = numpy.squeeze(V, axis = 0)
             if numpy.ndim(V) == 0:
@@ -35,8 +32,5 @@ class PoissonSpline(base.ProbSpline):
     @classmethod
     def _transform_inverse(cls, Z):
         # Silence warnings.
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore',
-                                    category = RuntimeWarning,
-                                    message = 'overflow encountered in exp')
+        with numpy.errstate(over = 'ignore'):
             return numpy.exp(Z) - cls._alpha

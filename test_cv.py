@@ -49,10 +49,12 @@ pyplot.ylabel('Mean CV Likelihood')
 pyplot.subplot(2, 1, 2)
 x = numpy.linspace(test_common.x_min, test_common.x_max, 1001)
 handles = []
-l = pyplot.plot(x, test_common.mu(x), color = 'black', linestyle = 'dotted',
+l = pyplot.plot(x, test_common.mu(x),
+                color = 'black', linestyle = 'dotted',
                 label = '$\mu(x)$')
 handles.append(l[0])
-s = pyplot.scatter(X, Y, color = 'black',
+s = pyplot.scatter(X, Y,
+                   s = 30, color = 'black', zorder = 3,
                    label = 'Poisson($\mu(x)$) samples')
 handles.append(s)
 l = pyplot.plot(x, spline(x),
