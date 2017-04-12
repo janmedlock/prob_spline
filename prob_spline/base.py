@@ -73,15 +73,15 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         if numpy.isscalar(ix):
             ix = [ix]
         # Get the coefficients in those intervals.
-        coef = numpy.stack(
-            [coef[(self.degree + 1) * i : (self.degree + 1) * (i + 1)]
+        C = numpy.stack(
+            [coef[..., (self.degree + 1) * i : (self.degree + 1) * (i + 1)].T
              for i in ix], axis = -1)
         # Evaluate the polynomials in those intervals at the X values.
-        z = numpy.polyval(coef, X - knots[ix])
+        z = numpy.polyval(C, X - knots[ix])
         mu = self._transform_inverse(z).clip(self._parameter_min,
                                              self._parameter_max)
         if numpy.isscalar(X):
-            mu = numpy.squeeze(mu, axis = 0)
+            mu = numpy.squeeze(mu, axis = -1)
             if numpy.ndim(mu) == 0:
                 mu = numpy.asscalar(mu)
         return mu
@@ -121,6 +121,10 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         A = scipy.sparse.vstack((A_C, A_I))
         b = numpy.hstack((b_C, b_I))
         coef = scipy.sparse.linalg.spsolve(A.tocsr(), b)
+        Z = self._transform(Y)
+        if numpy.ndim(Z) > 1:
+            r = numpy.shape(Z)[0]
+            coef = numpy.reshape(coef, (r, -1))
         return (knots, coef)
 
     def _get_interpolating_matrix_vector(self, X, Y):
@@ -150,6 +154,10 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         dX = X[-1] - X[-2]
         A_I[-1, - (self.degree + 1) : ] = dX ** exponents
         b_I = self._transform(Y)
+        if numpy.ndim(b_I) > 1:
+            r = numpy.shape(b_I)[0]
+            A_I = scipy.sparse.block_diag([A_I] * r)
+            b_I = numpy.hstack(b_I)
         return (A_I, b_I)
 
     def _get_continuity_matrix_vector(self, X, Y):
@@ -194,6 +202,11 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                 col = (self.degree + 1) * (i + 2) - 1 - j
                 A_C[row, col] = - constants[-1]
         b_C = numpy.zeros(m)
+        Z = self._transform(Y)
+        if numpy.ndim(Z) > 1:
+            r = numpy.shape(Z)[0]
+            A_C = scipy.sparse.block_diag([A_C] * r)
+            b_C = numpy.hstack([b_C] * r)
         return (A_C, b_C)
 
     def _fit_smoothing_spline(self, X, Y,
