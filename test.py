@@ -12,7 +12,7 @@ import prob_spline
 import test_common
 
 
-npoints = 21
+npoints = 20
 
 numpy.random.seed(2)
 
@@ -25,8 +25,10 @@ l = pyplot.plot(x, test_common.mu(x),
 handles.append(l[0])
 
 # Get Poisson samples around mu(x) and plot.
-X = numpy.linspace(test_common.x_min, test_common.x_max, npoints)
-Y = scipy.stats.poisson.rvs(test_common.mu(X))
+# Make mu(x) periodic.
+X = numpy.linspace(test_common.x_min, test_common.x_max, npoints + 1)
+Y = scipy.stats.poisson.rvs(test_common.mu(X[ : -1]))
+Y = numpy.hstack((Y, Y[0]))
 s = pyplot.scatter(X, Y,
                    s = 30, color = 'black', zorder = 3,
                    label = 'Poisson($\mu(x)$) samples')
