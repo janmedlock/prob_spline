@@ -1,5 +1,6 @@
 import numpy
 import scipy.stats
+import scipy.special
 
 from . import base
 
@@ -13,11 +14,19 @@ class MultinomialSpline(base.ProbSpline):
 
     @staticmethod
     def _loglikelihood(Y, mu):
-        V = scipy.stats.multinomial.logpmf(Y.T,
-                                           numpy.sum(Y, axis=0),
-                                           mu.T)
-        if numpy.isscalar(Y):
-            V = numpy.squeeze(V, axis = -1)
+        # V = scipy.stats.multinomial.logpmf(Y.T,
+        #                                    numpy.sum(Y, axis=0),
+        #                                    mu.T)
+        N = numpy.sum(Y, axis = 0)
+        with numpy.errstate(divide = 'ignore', invalid = 'ignore'):
+            Ylogp = Y * numpy.log(mu)
+        # 0 * log(0) = 0.
+        Ylogp[numpy.isnan(Ylogp)] = 0
+        V = (scipy.special.gammaln(N + 1)
+             - numpy.sum(scipy.special.gammaln(Y + 1), axis = 0)
+             + numpy.sum(Ylogp, axis = 0))
+        if numpy.ndim(Y) == 1:
+            V = numpy.squeeze(V, axis = 0)
         return V
 
     @classmethod

@@ -52,10 +52,20 @@ for (axes_i, Y_i) in zip(axes, Y):
                            nsamples))
 handles.append(s)
 
-# Build a spline using the multinomial loglikelihood.
-spline = prob_spline.MultinomialSpline(sigma = 0)
-spline.fit(X, Y)
-y = spline(x)
+# Build an interpolating spline using the multinomial loglikelihood.
+spline_I = prob_spline.MultinomialSpline(sigma = 0)
+spline_I.fit(X, Y)
+y = spline_I(x)
+for (axes_i, y_i) in zip(axes, y):
+    l = axes_i.plot(x, y_i,
+                    label = 'Fitted MultinomialSpline($\sigma =$ {:g})'.format(
+                        spline.sigma))
+handles.append(l[0])
+
+# Build a smoothing spline using the multinomial loglikelihood.
+spline_S = prob_spline.MultinomialSpline(sigma = 0.95)
+spline_S.fit(X, Y)
+y = spline_S(x)
 for (axes_i, y_i) in zip(axes, y):
     l = axes_i.plot(x, y_i,
                     label = 'Fitted MultinomialSpline($\sigma =$ {:g})'.format(

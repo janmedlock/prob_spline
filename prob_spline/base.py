@@ -227,7 +227,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         knots_interp, coef_interp = self._fit_interpolating_spline(
             X, Y, continuity_matrix_vector = (A_C, b_C))
         # We could also optimize over the knots.
-        initial_guess = coef_interp
+        initial_guess = numpy.ravel(coef_interp)
         knots = knots_interp
         # Set some constants so that the objective function
         # doesn't recompute them every time it is called.
@@ -253,6 +253,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         if not result.success:
             warnings.warn(result.message, scipy.optimize.OptimizeWarning)
         coef = result.x
+        coef = numpy.reshape(coef, numpy.shape(coef_interp))
         return (knots, coef)
 
     def _objective(self, coef, knots, X, Y, *variation_args):
@@ -260,22 +261,25 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         The objective function for optimizing the smoothing spline,
         - loglikelihood + sigma * \int |f''(x)| dx.
         '''
+        r = int(len(coef) / len(knots) / (self.degree + 1))
+        if r > 1:
+            coef = numpy.reshape(coef, (r, -1))
         mu = self._evaluate(X, knots, coef)
         loglikelihood = numpy.sum(self._loglikelihood(Y, mu))
         if self.sigma == 0:
             return - loglikelihood
         else:
-            variation = self._variation(knots, coef, *variation_args)
+            variation = self._variation(coef, knots, *variation_args)
             return - loglikelihood + self.sigma * variation
 
-    def _variation(self, knots, coef,
+    def _variation(self, coef, knots,
                    dX, deriv1, deriv2, adjustment_constant):
         '''
         \int |f^{(k - 1)}(x)| dx
         '''
         # Calculate the variation integral.
-        a = coef[0 : : self.degree + 1]
-        b = coef[1 : : self.degree + 1]
+        a = coef[..., 0 : : self.degree + 1]
+        b = coef[..., 1 : : self.degree + 1]
         # Check if 2nd derivative is 0 inside each interval.
         condition1  = (a * b < 0)
         condition2 = (numpy.abs(deriv2[1] * b)
