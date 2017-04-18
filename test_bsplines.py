@@ -3,8 +3,6 @@
 import numpy
 import scipy.interpolate
 import scipy.linalg
-import scipy.sparse
-import scipy.sparse.linalg
 
 
 def N(x, i, degree, knots):
@@ -15,14 +13,7 @@ def N(x, i, degree, knots):
     while Dierckx uses order = degree + 1.
     '''
     if degree == 0:
-        cond_left = (knots[i] <= x)
-        if i + 1 < len(knots) - 1:
-            cond_right = (x < knots[i + 1])
-        else:
-            # i + 1 == len(knots) - 1
-            # Include the right-most endpoint in the interval.
-            cond_right = (x <= knots[i + 1])
-        return numpy.where(cond_left & cond_right, 1, 0)
+        return numpy.where((knots[i] <= x) & (x < knots[i + 1]), 1, 0)
     else:
         if knots[i + degree] > knots[i]:
             coef_left = (x - knots[i]) / (knots[i + degree] - knots[i])
@@ -53,64 +44,64 @@ def get_knots(X, degree = 3, a = None, b = None):
     if b == None:
         b = X[-1]
     n = len(X)
-    assert n >= degree + 1
-    knots = numpy.empty(n + degree + 1)
-    # (degree + 1) copies of a at the front.
-    knots[ : (degree + 1)] = a
+    knots = numpy.empty(n + 2 * degree)
+    # The internal knots.
     if degree % 2 == 1:
-        # Middle is X without the first and last (degree + 1) / 2 entries.
-        j = int((degree + 1) / 2)
-        knots[degree + 1 : n] = X[j : n - j]
+        knots[degree : n + degree] = X
     else:
         # degree % 2 == 0
-        # Middle is the average of
-        # X without the first degree / 2 and last degree / 2 + 1 entries
-        # and X without the first degree / 2 + 1 and last degree / 2 entries.
-        j = int(degree / 2)
-        knots[degree + 1 : n] = (X[j : n - j - 1]
-                                 + X[j + 1 : n - j]) / 2
-    # (degree + 1) copies of b at the end.
-    knots[n : ] = b
+        knots[degree] = a
+        knots[degree + 1 : n + degree - 1] = (X[1 : - 1] + X[0 : - 2]) / 2
+        knots[n + degree - 1] = b
+    # Periodic boundary knots.
+    knots[ : degree] = knots[n - 1 : n + degree - 1] - b + a
+    knots[n + degree : ] = knots[degree + 1 : 2 * degree + 1] + b - a
     return knots
 
 
-def get_coef_matrix(X, degree, knots, sparse = True):
+def get_coef_matrix(X, degree, knots):
     '''
     Build the matrix used to find the coefficients.
     '''
     n = len(X)
-    if not sparse:
-        A = numpy.column_stack([N(X, i, degree, knots)
-                                for i in range(n)])
-    else:
-        diag_max = max(degree - 1, 0)
-        offsets = range(- diag_max, diag_max + 1)
-        diags = [[N(X[j], i + j, degree, knots)
-                  for j in range(- min(i, 0), n - max(i, 0))]
-                 for i in offsets]
-        A = scipy.sparse.diags(diags, offsets)
+    # A will have nonzero entries
+    # [[ x x x           ]]
+    # [[   x x x         ]]
+    # [[     \ \ \       ]]
+    # [[       x x x     ]]
+    # [[         x x x   ]]
+    # [[           x x x ]]
+    # where the width of the nonzero band is (degree + 1).
+    #
+    # We will take the right-most degree columns
+    # and add them to the left-most degree columns
+    # to get A:
+    # [[ x x x       ]]
+    # [[   x x x     ]]
+    # [[     \ \ \   ]]
+    # [[       x x x ]]
+    # [[ x       x x ]]
+    # [[ x x       x ]]
+    A = numpy.column_stack([N(X[ : -1], i, degree, knots)
+                            for i in range(n - 1)])
+    B = numpy.column_stack([N(X[ : -1], i, degree, knots)
+                            for i in range(n - 1, n + degree - 1)])
+    A[:, : degree] += B
     return A
 
 
-def get_coef(X, Y, degree, knots, sparse = True):
+def get_coef(X, Y, degree, knots):
     '''
     Find the coefficients for an interpolating spline through
     the points (X, Y).
     '''
-    A = get_coef_matrix(X, degree, knots, sparse = sparse)
-    if not scipy.sparse.issparse(A):
-        coef = scipy.linalg.solve(A, Y)
-    else:
-        if not (scipy.sparse.isspmatrix_csc(A)
-                or scipy.sparse.isspmatrix_csc(A)):
-            # Need to convert for spsolve.
-            A = scipy.sparse.csc_matrix(A)
-        coef = scipy.sparse.linalg.spsolve(A, Y)
-    coef = numpy.hstack((coef, [0] * (degree + 1)))
+    A = get_coef_matrix(X, degree, knots)
+    coef = scipy.linalg.solve(A, Y[ : -1])
+    coef = numpy.hstack((coef, coef[0 : degree], [0] * (degree + 1)))
     return coef
 
 
-def get_spline(X, Y, degree = 3, sparse = True, a = None, b = None):
+def get_spline(X, Y, degree = 3, a = None, b = None):
     '''
     Build an interpolating spline through the points (X, Y).
 
@@ -118,7 +109,7 @@ def get_spline(X, Y, degree = 3, sparse = True, a = None, b = None):
     that is compatible with scipy.interpolate.splev() etc.
     '''
     knots = get_knots(X, degree = degree, a = a, b = b)
-    coef = get_coef(X, Y, degree, knots, sparse = sparse)
+    coef = get_coef(X, Y, degree, knots)
     return (knots, coef, degree)
 
 
@@ -155,8 +146,14 @@ if __name__ == '__main__':
     # for degree = 1, ..., 5.
     X = numpy.sort(numpy.random.uniform(size = 10))
     Y = numpy.random.uniform(size = len(X))
+    # Force to be periodic.
+    X = numpy.hstack((X, X[0] + 1))
+    Y = numpy.hstack((Y, Y[0]))
     for degree in range(1, 5 + 1):
-        tck_scipy = scipy.interpolate.splrep(X, Y, k = degree, s = 0)
+        tck_scipy = scipy.interpolate.splrep(X, Y,
+                                             k = degree,
+                                             s = 0,
+                                             per = True)
         knots = get_knots(X, degree)
         assert all(numpy.isclose(knots, tck_scipy[0]))
         coef = get_coef(X, Y, degree, knots)
