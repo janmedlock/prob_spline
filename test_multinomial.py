@@ -17,9 +17,6 @@ nsamples = 10
 
 numpy.random.seed(2)
 
-x_min = 0
-x_max = 1
-
 def mu(x):
     v = numpy.row_stack((numpy.cos(numpy.pi * x) ** 4,
                          numpy.sin(numpy.pi * x) ** 4))
@@ -30,7 +27,7 @@ def mu(x):
 
 
 # Plot mus
-x = numpy.linspace(x_min, x_max, 1001)
+x = numpy.linspace(0, 1, 1001)
 mu_ = mu(x)
 fig, axes = pyplot.subplots(mu_.shape[0], 1, sharex = 'col')
 handles = []  # To control the order in the legend.
@@ -41,10 +38,8 @@ for (axes_i, mu_i) in zip(axes, mu_):
 handles.append(l[0])
 
 # Get Poisson samples around mu(x) and plot.
-X_pad = (x_max - x_min) / 2 / npoints
-X_min = x_min + X_pad
-X_max = x_max - X_pad
-X = numpy.linspace(X_min, X_max, npoints)
+X_pad = 1 / 2 / npoints
+X = numpy.linspace(X_pad, 1 - X_pad, npoints)
 # Y = scipy.stats.multinomial.rvs(nsamples, mu(X))
 Y = numpy.column_stack([numpy.random.multinomial(nsamples, mu(x))
                         for x in X])

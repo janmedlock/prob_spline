@@ -18,10 +18,8 @@ npoints = 20
 numpy.random.seed(2)
 
 # Get Poisson samples around mu(x).
-X_pad = (test_common.x_max - test_common.x_min) / 2 / npoints
-X_min = test_common.x_min + X_pad
-X_max = test_common.x_max - X_pad
-X = numpy.linspace(X_min, X_max, npoints)
+X_pad = 1 / 2 / npoints
+X = numpy.linspace(X_pad, 1 - X_pad, npoints)
 Y = scipy.stats.poisson.rvs(test_common.mu(X))
 
 spline = prob_spline.PoissonSpline()
@@ -50,7 +48,7 @@ pyplot.xlabel('$\sigma$')
 pyplot.ylabel('Mean CV Likelihood')
 
 pyplot.subplot(2, 1, 2)
-x = numpy.linspace(test_common.x_min, test_common.x_max, 1001)
+x = numpy.linspace(0, 1, 1001)
 handles = []
 l = pyplot.plot(x, test_common.mu(x),
                 color = 'black', linestyle = 'dotted',
