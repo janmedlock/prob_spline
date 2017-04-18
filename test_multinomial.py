@@ -21,8 +21,8 @@ x_min = 0
 x_max = 1
 
 def mu(x):
-    v = numpy.row_stack((numpy.cos(2 * numpy.pi * x) ** 4,
-                         numpy.sin(2 * numpy.pi * x) ** 4))
+    v = numpy.row_stack((numpy.cos(numpy.pi * x) ** 4,
+                         numpy.sin(numpy.pi * x) ** 4))
     v = numpy.row_stack((v, 1 - numpy.sum(v, axis = 0)))
     if numpy.isscalar(x):
         v = numpy.squeeze(v, axis = -1)
@@ -41,7 +41,10 @@ for (axes_i, mu_i) in zip(axes, mu_):
 handles.append(l[0])
 
 # Get Poisson samples around mu(x) and plot.
-X = numpy.linspace(x_min, x_max, npoints + 1)
+X_pad = (x_max - x_min) / 2 / npoints
+X_min = x_min + X_pad
+X_max = x_max - X_pad
+X = numpy.linspace(X_min, X_max, npoints)
 # Y = scipy.stats.multinomial.rvs(nsamples, mu(X))
 Y = numpy.column_stack([numpy.random.multinomial(nsamples, mu(x))
                         for x in X])
@@ -59,17 +62,17 @@ y = spline_I(x)
 for (axes_i, y_i) in zip(axes, y):
     l = axes_i.plot(x, y_i,
                     label = 'Fitted MultinomialSpline($\sigma =$ {:g})'.format(
-                        spline.sigma))
+                        spline_I.sigma))
 handles.append(l[0])
 
 # Build a smoothing spline using the multinomial loglikelihood.
-spline_S = prob_spline.MultinomialSpline(sigma = 0.95)
+spline_S = prob_spline.MultinomialSpline(sigma = 0.9)
 spline_S.fit(X, Y)
 y = spline_S(x)
 for (axes_i, y_i) in zip(axes, y):
     l = axes_i.plot(x, y_i,
                     label = 'Fitted MultinomialSpline($\sigma =$ {:g})'.format(
-                        spline.sigma))
+                        spline_S.sigma))
 handles.append(l[0])
 
 # Add decorations to plot.

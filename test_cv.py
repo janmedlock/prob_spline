@@ -18,10 +18,11 @@ npoints = 20
 numpy.random.seed(2)
 
 # Get Poisson samples around mu(x).
-# Make mu(x) periodic.
-X = numpy.linspace(test_common.x_min, test_common.x_max, npoints + 1)
-Y = scipy.stats.poisson.rvs(test_common.mu(X[ : -1]))
-Y = numpy.hstack((Y, Y[0]))
+X_pad = (test_common.x_max - test_common.x_min) / 2 / npoints
+X_min = test_common.x_min + X_pad
+X_max = test_common.x_max - X_pad
+X = numpy.linspace(X_min, X_max, npoints)
+Y = scipy.stats.poisson.rvs(test_common.mu(X))
 
 spline = prob_spline.PoissonSpline()
 # Find the best sigma value by K-fold cross-validation.

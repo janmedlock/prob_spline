@@ -19,7 +19,7 @@ def identity(Y):
 
 class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
     '''
-    A smoothing spline using a loglikelihood as the error metric
+    A smoothing periodic spline using a loglikelihood as the error metric
     instead of the usual squared distance.
     '''
     _parameter_min = - numpy.inf
@@ -27,12 +27,14 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
 
     _transform = _transform_inverse = staticmethod(identity)
 
-    def __init__(self, degree = 3, sigma = 0):
+    def __init__(self, degree = 3, sigma = 0, period = 1):
         assert isinstance(degree, numbers.Integral) and (degree >= 0), \
             'degree must be a nonnegative integer.'
         self.degree = degree
         assert (sigma >= 0), 'sigma must be nonnegative.'
         self.sigma = sigma
+        assert (period > 0), 'period must be positive.'
+        self.period = period
 
     @abc.abstractmethod
     def _loglikelihood(self, Y, mu):
@@ -63,21 +65,34 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         # Make sure knots_ and coef_ are defined.
         sklearn.utils.validation.check_is_fitted(self, ('knots_', 'coef_'))
 
-    def _evaluate(self, X, knots, coef):
+    def _evaluate(self, X, knots, coef, derivative = 0):
         '''
         Evaluate the spline defined by (knots, coef) at X.
         '''
         # Find which interval the x values are in.
-        ix = (numpy.searchsorted(knots, X) - 1).clip(min = 0)
+        # Shift so that knots[0] is at 0.
+        knots_shifted = knots - knots[0]
+        X_shifted = (X - knots[0]) % self.period
+        ix = numpy.searchsorted(knots_shifted, X_shifted, side = 'right') - 1
         # Handle scalar vs vector x.
         if numpy.isscalar(ix):
             ix = [ix]
-        # Get the coefficients in those intervals.
+        # Get the coefficients in those intervals
+        # and stack them for numpy.polyval().
         C = numpy.stack(
             [coef[..., (self.degree + 1) * i : (self.degree + 1) * (i + 1)].T
              for i in ix], axis = -1)
+        # Take derivatives or integrals as needed.
+        if derivative > 0:
+            C = numpy.stack([numpy.polyder(C[..., i], derivative)
+                             for i in range(numpy.shape(C)[-1])],
+                            axis = -1)
+        elif derivative < 0:
+            C = numpy.stack([numpy.polyint(C[..., i], - derivative)
+                             for i in range(numpy.shape(C)[-1])],
+                            axis = -1)
         # Evaluate the polynomials in those intervals at the X values.
-        z = numpy.polyval(C, X - knots[ix])
+        z = numpy.polyval(C, X_shifted - knots_shifted[ix])
         mu = self._transform_inverse(z).clip(self._parameter_min,
                                              self._parameter_max)
         if numpy.isscalar(X):
@@ -86,12 +101,12 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                 mu = numpy.asscalar(mu)
         return mu
 
-    def predict(self, X):
+    def predict(self, X, *args, **kwargs):
         '''
         The Y values of the spline at X.
         '''
         self._check_is_fitted()
-        return self._evaluate(X, self.knots_, self.coef_)
+        return self._evaluate(X, self.knots_, self.coef_, *args, **kwargs)
 
     __call__ = predict
 
@@ -102,12 +117,16 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         mu = self.predict(X)
         return numpy.exp(numpy.sum(self._loglikelihood(Y, mu)))
 
+    def _get_knots(self, X):
+        knots = X
+        return knots
+
     def _fit_interpolating_spline(self, X, Y,
                                   continuity_matrix_vector = None):
         '''
         Fit an interpolating spline to (X, Y).
         '''
-        knots = X[0 : -1]
+        knots = self._get_knots(X)
         # The continuity conditions.
         # A_C.dot(coef) = b_C.
         if continuity_matrix_vector is not None:
@@ -134,26 +153,24 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         A_I * coef = b_I
         when the conditions are all satisfied.
         '''
-        knots = X[0 : -1]
-        m_I = len(knots) + 1
+        knots = self._get_knots(X)
+        m_I = len(knots)
         n_I = (self.degree + 1) * len(knots)
+        # The matrix.
         A_I = scipy.sparse.lil_matrix((m_I, n_I))
-        # At all the X values except the last one,
-        # we just have that the constant term in the
-        # polynomial is equal to the corresponding
+        # At all the X values, we just have that
+        # the constant term in the polynomial is
+        # equal to the corresponding
         # (transformed) Y value.
         rows = numpy.arange(len(knots), dtype = int)
         # The constant terms.
         cols = rows * (self.degree + 1) + self.degree
         A_I[rows, cols] = 1
-        # The final interpolation condtion is that
-        # the last polynomial, from the penultimate X value,
-        # evaluated at the final X value,
-        # is equal to the final (transformed) Y value.
-        exponents = numpy.arange(self.degree, -1, -1)
-        dX = X[-1] - X[-2]
-        A_I[-1, - (self.degree + 1) : ] = dX ** exponents
+        # The right-hand side vector.
         b_I = self._transform(Y)
+        # If the (transformed) Y is a matrix,
+        # built out the matrix and vector
+        # by block operations.
         if numpy.ndim(b_I) > 1:
             r = numpy.shape(b_I)[0]
             A_I = scipy.sparse.block_diag([A_I] * r)
@@ -167,41 +184,39 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         A_C * coef = b_C
         when the conditions are all satisfied.
         '''
-        knots = X[0 : -1]
-        m = self.degree * (len(knots) - 1) + 2
+        knots = self._get_knots(X)
+        m = self.degree * len(knots)
         n = (self.degree + 1) * len(knots)
         A_C = scipy.sparse.lil_matrix((m, n))
-        dX = numpy.diff(X)
-        if self.degree > 0:
-            # Natural boundary conditions.
-            # The (degree - 1)st derivative is zero at the boundaries.
-            constants = numpy.polyder(numpy.ones(self.degree + 1),
-                                      m = self.degree - 1)
-            exponents = numpy.arange(1, -1, -1)
-            # Left boundary.
-            A_C[0, 1] = constants[1]
-            # Right boundary.
-            cols = slice(- (self.degree + 1), - (self.degree - 1))
-            A_C[-1, cols] = constants * dX[-1] ** exponents
-        # At each internal knot,
+        # Add periodic point.
+        dX = numpy.diff(numpy.hstack((X, X[0] + self.period)))
+        # At each knot,
         # the jth derivatives are continuous
         # for j = 0, 1, ..., degree - 1.
         for j in range(self.degree):
             constants = numpy.polyder(numpy.ones(self.degree + 1),
                                       m = j)
             exponents = numpy.arange(self.degree - j, -1, -1)
-            for i in range(len(knots) - 1):
-                row = self.degree * i + j + 1
+            for i in range(len(knots)):
+                row = self.degree * i + j
                 # The columns of the terms in
-                # the jth derivative of the ith polynomial.
+                # the jth derivative
+                # of the ith polynomial.
                 cols = slice((self.degree + 1) * i,
                              (self.degree + 1) * (i + 1) - j)
                 A_C[row, cols] = constants * dX[i] ** exponents
                 # The column of the constant term in
-                # the jth derivative of the (i + 1)st polynomial.
-                col = (self.degree + 1) * (i + 2) - 1 - j
+                # the jth derivative of the (i + 1)st polynomial,
+                # but wrap around using modular arithmetic
+                # to connect the last spline with the first
+                # for periodicity.
+                col = ((self.degree + 1) * (i + 2) - 1 - j) % n
                 A_C[row, col] = - constants[-1]
+        # The right-hand side vector is just all zeros.
         b_C = numpy.zeros(m)
+        # If the (transformed) Y is a matrix,
+        # built out the matrix and vector
+        # by block operations.
         Z = self._transform(Y)
         if numpy.ndim(Z) > 1:
             r = numpy.shape(Z)[0]
@@ -231,7 +246,8 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         knots = knots_interp
         # Set some constants so that the objective function
         # doesn't recompute them every time it is called.
-        dX = numpy.diff(X)
+        # Add periodic point.
+        dX = numpy.diff(numpy.hstack((X, X[0] + self.period)))
         deriv1 = numpy.polyder(numpy.ones(self.degree + 1),
                                m = self.degree - 2)
         deriv2 = numpy.polyder(numpy.ones(self.degree + 1),
@@ -269,10 +285,10 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         if self.sigma == 0:
             return - loglikelihood
         else:
-            variation = self._variation(coef, knots, *variation_args)
+            variation = self._variation(knots, coef, *variation_args)
             return - loglikelihood + self.sigma * variation
 
-    def _variation(self, coef, knots,
+    def _variation(self, knots, coef,
                    dX, deriv1, deriv2, adjustment_constant):
         '''
         \int |f^{(k - 1)}(x)| dx

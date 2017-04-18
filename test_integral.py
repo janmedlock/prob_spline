@@ -16,10 +16,11 @@ npoints = 20
 numpy.random.seed(2)
 
 # Get Poisson samples around mu(x).
-# Make mu(x) periodic.
-X = numpy.linspace(test_common.x_min, test_common.x_max, npoints + 1)
-Y = scipy.stats.poisson.rvs(test_common.mu(X[ : -1]))
-Y = numpy.hstack((Y, Y[0]))
+X_pad = (test_common.x_max - test_common.x_min) / 2 / npoints
+X_min = test_common.x_min + X_pad
+X_max = test_common.x_max - X_pad
+X = numpy.linspace(X_min, X_max, npoints)
+Y = scipy.stats.poisson.rvs(test_common.mu(X))
 
 # Fit an interpolating spline.
 spline = prob_spline.NormalSpline()
@@ -31,7 +32,7 @@ def get_variation_exact(spline, X):
     Compute the variation using the exact algorithm
     in prob_spline.ProbSpline._objective().
     '''
-    dX = numpy.diff(X)
+    dX = numpy.diff(numpy.hstack((X, X[0] + spline.period)))
     deriv1 = numpy.polyder(numpy.ones(spline.degree + 1),
                            m = spline.degree - 2)
     deriv2 = numpy.polyder(numpy.ones(spline.degree + 1),
@@ -44,34 +45,21 @@ def get_variation_exact(spline, X):
     return variation
 
 
-def get_variation_numint(spline, X):
+def get_variation_numint(spline, a, b):
     '''
     Compute the variation using numerical integration
     of the spline's second derivative.
     '''
     def absf2(X):
-        # Find which interval the x values are in.
-        ix = (numpy.searchsorted(spline.knots_, X) - 1).clip(min = 0)
-        # Handle scalar vs vector x.
-        if numpy.isscalar(ix):
-            ix = [ix]
-        # Get the coefficients in those intervals.
-        coef = (spline.coef_[(spline.degree + 1) * i :
-                             (spline.degree + 1) * (i + 1)]
-                for i in ix)
-        # Take the (degree - 1)st derivative.
-        coef = numpy.column_stack((numpy.polyder(c, m = spline.degree - 1)
-                                   for c in coef))
-        v = numpy.abs(numpy.polyval(coef, X - spline.knots_[ix]))
-        if numpy.isscalar(X):
-            v = numpy.asscalar(v)
-        return v
-    variation, error = scipy.integrate.quad(absf2, X[0], X[-1],
+        return numpy.abs(spline(X, derivative = spline.degree - 1))
+    variation, error = scipy.integrate.quad(absf2, a, b,
                                             limit = 1000)
     return variation
 
 
 variation_exact = get_variation_exact(spline, X)
-variation_numint = get_variation_numint(spline, X)
+variation_numint = get_variation_numint(spline,
+                                        test_common.x_min,
+                                        test_common.x_max)
 
 assert numpy.isclose(variation_exact, variation_numint)
