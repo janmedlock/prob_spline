@@ -180,14 +180,14 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         return continuity_matrix.T
 
     def _fit_smoothing_spline(self, X, Y,
-                              tol = 1e-3, maxiter = 1000, **options):
+                              method = 'Nelder-Mead', tol = 1e-3,
+                              options = dict(maxiter = 100000,
+                                             maxfev = 100000)):
         '''
         Fit a smoothing spline to (X, Y)
         by minimizing
         - loglikelihood + sigma * \int |f''(x)| dx.
         '''
-        # Build the options for scipy.optimize.minimize()
-        options.update(maxiter = maxiter)
         # Get the initial guess for the coefficients
         # from the interpolating spline.
         knots_interp, coef_interp = self._fit_interpolating_spline(X, Y)
@@ -219,6 +219,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         result = scipy.optimize.minimize(self._objective,
                                          initial_guess,
                                          args = objective_args,
+                                         method = method,
                                          tol = tol,
                                          options = options)
         if not result.success:
