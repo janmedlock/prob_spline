@@ -96,7 +96,7 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
         mu = self._transform_inverse(z).clip(self._parameter_min,
                                              self._parameter_max)
         if numpy.isscalar(X):
-            mu = numpy.squeeze(mu, axis = -1)
+            mu = numpy.squeeze(mu)
             if numpy.ndim(mu) == 0:
                 mu = numpy.asscalar(mu)
         return mu
