@@ -61,7 +61,7 @@ for (axes_i, y_i) in zip(axes, y):
 handles.append(l[0])
 
 # Build a smoothing spline using the multinomial loglikelihood.
-spline_S = prob_spline.MultinomialSpline(sigma = 0.9)
+spline_S = prob_spline.MultinomialSpline(sigma = 0.2)
 spline_S.fit(X, Y)
 y = spline_S(x)
 for (axes_i, y_i) in zip(axes, y):
