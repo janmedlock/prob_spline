@@ -223,7 +223,8 @@ class ProbSpline(sklearn.base.BaseEstimator, abc.ABC):
                                          tol = tol,
                                          options = options)
         if not result.success:
-            warnings.warn(result.message, scipy.optimize.OptimizeWarning)
+            warnings.warn(result.message,
+                          category = scipy.optimize.OptimizeWarning)
         coef_constants_flat = result.x
         coef_constants = numpy.reshape(coef_constants_flat,
                                        coef_constants_shape)
